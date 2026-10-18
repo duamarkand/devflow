@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  BUILDING
+  IN_REVIEW
+  COMPLETED
+  LIVE
+  ARCHIVED
+}
+
+enum ProjectVisibility {
+  PRIVATE
+  TEAM
+  PUBLIC
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  DEVELOPER
+  DESIGNER
+  VIEWER
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  password       String
+  avatar         String?
+  githubUsername String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  ownedProjects  Project[]       @relation("ProjectOwner")
+  memberships    ProjectMember[]
+  createdTasks   Task[]          @relation("TaskCreator")
+  assignedTasks  Task[]          @relation("TaskAssignee")
+  createdIssues  Issue[]         @relation("IssueCreator")
+  assignedIssues Issue[]         @relation("IssueAssignee")
+  comments       Comment[]
+  activities     Activity[]
+}
+
+model Project {
+  id                 String            @id @default(cuid())
+  name               String
+  slug               String            @unique
+  description        String
+  logoUrl            String?
+  category           String            @default("Web Development")
+  techStack          String[]          @default([])
+  visibility         ProjectVisibility @default(PUBLIC)
+  status             ProjectStatus     @default(PLANNING)
+  progress           Int               @default(0)
+  startDate          DateTime?
+  targetDate         DateTime?
+  githubUrl          String?
+  liveUrl            String?
+  docUrl             String?
+  demoUrl            String?
+  deploymentProvider String?
+  deploymentStatus   String?
+  githubRepoId       String?
+  githubOwner        String?
+  githubRepository   String?
+  ownerId            String
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  owner          User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members        ProjectMember[]
+  tasks          Task[]
+  issues         Issue[]
+  activities     Activity[]
+  gitIntegration GitIntegration?
+}
+
+model ProjectMember {
+  id        String     @id @default(cuid())
+  projectId String
+  userId    String
+  role      MemberRole @default(DEVELOPER)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  projectId   String
+  assigneeId  String?
+  creatorId   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator  User    @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+}
+
+model Issue {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      IssueStatus  @default(OPEN)
+  priority    TaskPriority @default(MEDIUM)
+  projectId   String
+  assigneeId  String?
+  creatorId   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?     @relation("IssueAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator  User      @relation("IssueCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  issueId   String
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  projectId String?
+  userId    String
+  createdAt DateTime @default(now())
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GitIntegration {
+  id           String    @id @default(cuid())
+  projectId    String    @unique
+  githubOwner  String
+  githubRepo   String
+  connectedAt  DateTime  @default(now())
+  lastSyncedAt DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
